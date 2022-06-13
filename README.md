@@ -342,3 +342,166 @@ dt_upr_result = pd.DataFrame({
 
 dt_upr_result
 ```
+Если коэфициент детерминации равен 1, то это значит что регрессия дает адекватный результат.
+В данном случае результат получился хуже, чем если брать среднее значение.
+
+Поиск гиперпараметров по разным регрессиям
+```
+Ir = LinearRegression()
+Ir.fit(x_train_pr, y_train_pr)
+y_pred_ir = Ir.predict(x_test_pr)
+pl.figure(figsize=(12,10))
+pl.plot(y_pred_ir, 'g', label='prediction')
+pl.plot(y_test_pr.values, label='actual')
+pl.grid(True);
+
+Ir = LinearRegression()
+Ir.fit(x_train_upr, y_train_upr)
+y_pred_ir = Ir.predict(x_test_upr)
+pl.figure(figsize=(12,10))
+pl.plot(y_pred_ir, 'g', label='prediction')
+pl.plot(y_test_upr.values, label='actual')
+pl.grid(True);
+
+param_grid = {'n_neighbors': range(1,50)}
+gs = GridSearchCV(knr, param_grid, cv=10, verbose = 1, n_jobs=-1)
+gs.fit(x_train_pr,y_train_pr)
+knn_3 = gs.best_estimator_
+gs.best_params_
+
+knn = KNeighborsRegressor(n_neighbors=5)
+knn.fit(x_train_pr, y_train_pr)
+y_pred_knn = knn.predict(x_test_pr)
+pl.figure(figsize=(12,10))
+pl.plot(y_pred_knn, 'g', label='prediction')
+pl.plot(y_test_pr.values, label='actual')
+pl.grid(True);
+
+param_grid = {'n_neighbors': range(1,50)}
+gs = GridSearchCV(knn, param_grid, cv=10, verbose = 1, n_jobs=-1)
+gs.fit(x_train_upr,y_train_upr)
+knn_3 = gs.best_estimator_
+gs.best_params_
+
+knn = KNeighborsRegressor(n_neighbors=5)
+knn.fit(x_train_upr, y_train_upr)
+y_pred_knn = knn.predict(x_test_upr)
+pl.figure(figsize=(12,10))
+pl.plot(y_pred_knn, 'g', label='prediction')
+pl.plot(y_test_upr.values, label='actual')
+pl.grid(True);
+
+param_grid = {'criterion': ['friedman_mse']}
+gs = GridSearchCV(DecisionTreeRegressor(), param_grid, cv=10, verbose = 1, n_jobs=-1)
+gs.fit(x_train_pr,y_train_pr)
+dt_3 = gs.best_estimator_
+gs.best_params_
+
+dt = DecisionTreeRegressor()
+dt.fit(x_train_pr, y_train_pr)
+y_pred_dt = dt.predict(x_test_pr)
+pl.figure(figsize=(12,10))
+pl.plot(y_pred_dt, 'g', label='prediction')
+pl.plot(y_test_pr.values, label='actual')
+pl.grid(True);
+
+param_grid = {'criterion': ['friedman_mse']}
+gs = GridSearchCV(DecisionTreeRegressor(), param_grid, cv=10, verbose = 1, n_jobs=-1)
+gs.fit(x_train_upr,y_train_upr)
+dt_3 = gs.best_estimator_
+gs.best_params_
+
+dt = DecisionTreeRegressor()
+dt.fit(x_train_upr, y_train_upr)
+y_pred_dt = dt.predict(x_test_upr)
+pl.figure(figsize=(12,10))
+pl.plot(y_pred_dt, 'g', label='prediction')
+pl.plot(y_test_upr.values, label='actual')
+pl.grid(True);
+```
+Более адекватные значения наблюдаются в KNN регрессии. В дальшейшем обучении будет использоваться она.
+
+# Обучение и создание нейросети
+Разметка данных
+```
+input_columns_names = ['Плотность, кг/м3','модуль упругости, ГПа','Количество отвердителя, м.%','Содержание эпоксидных групп,%_2','Температура вспышки, С_2','Поверхностная плотность, г/м2','Модуль упругости при растяжении, ГПа','Прочность при растяжении, МПа','Потребление смолы, г/м2','Угол нашивки, град','Шаг нашивки','Плотность нашивки']
+output_columns_names = ['Соотношение матрица-наполнитель']
+x = df_norm[input_columns_names]
+y = df_norm[output_columns_names]
+
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=1)
+```
+Обучение
+```
+knn = KNeighborsRegressor()
+param_grid = {
+    'n_neighbors': [1,2,5,10,20]}
+GSCV = GridSearchCV(estimator=knn, param_grid=param_grid, cv=10, verbose=2)
+GSCV.fit(x_train, y_train)
+GSCV.best_params_
+
+knn.fit(x_train, y_train)
+prediction=knn.predict(x_test)
+np.mean((y_test - prediction)*(y_test - prediction))
+
+input_columns_names = ['Плотность, кг/м3','модуль упругости, ГПа','Количество отвердителя, м.%','Содержание эпоксидных групп,%_2','Температура вспышки, С_2','Поверхностная плотность, г/м2','Модуль упругости при растяжении, ГПа','Прочность при растяжении, МПа','Потребление смолы, г/м2','Угол нашивки, град','Шаг нашивки','Плотность нашивки']
+output_columns_names = ['Соотношение матрица-наполнитель']
+x = df_norm[input_columns_names]
+y = df_norm[output_columns_names]
+```
+Просмотр статистики набора данных
+```
+print(x.shape, y.shape)
+
+seaborn.pairplot(pd.DataFrame(np.column_stack([x, y])), diag_kind='kde')
+
+pd.DataFrame(np.column_stack(([x, y])))
+```
+Создание нейросети
+```
+from keras.models import Sequential
+from keras import models
+
+def get_model(n_inputs, n_outputs):
+    model = Sequential()
+    model.add(Dense(32, input_dim=n_inputs, kernel_initializer='he_uniform', activation='relu'))
+    model.add(Dense(64, input_dim=n_inputs, kernel_initializer='he_uniform', activation='relu'))
+    model.add(Dense(n_outputs))
+    model.compile(loss='mae', optimizer='adam', metrics=['accuracy'])
+    return model
+    
+model = get_model(12,1)
+model.summary()
+hist = model.fit(x, y, verbose=0, epochs=2000, validation_data = (x_train, y_train))
+```
+Просмотр графика уменьшения ошибки
+```
+df = pd.DataFrame(hist.history)
+
+import matplotlib.pyplot as plt
+
+plt.plot(df)
+```
+Просмотр точности и потерь на тесте
+```
+score = model.evaluate(x_test, y_test, verbose=1)
+print('Потери на тесте:', score[0])
+print('Точность на тесте:', score[1])
+```
+Просмотр рекомендованных данных Соотношения матрица-наполнитель
+```
+x
+
+prediction = model.predict(x)
+
+prediction
+```
+Статистика
+```
+np.mean((y-prediction)*(y-prediction), axis=0)
+```
+Сохранение модели
+```
+model_path = 'C:/Users/Alexandra/Desktop/вкр/models/my_model_2'
+model.save(model_path)
+```
